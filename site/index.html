@@ -51,6 +51,17 @@
     так и большие модели иногда «галлюцинируют».</p>
   </details>
 
+  <details class="about" id="brainPanel">
+    <summary>Живые нейроны — докажите себе, что это не скрипт</summary>
+    <p>Ответы рождаются не поиском по шаблонам, а перемножением матриц весов. Проверьте сами:</p>
+    <p>
+      <button id="damage" class="mini">🧪 Повредить нейроны (шум в веса)</button>
+      <button id="restore" class="mini" disabled>♻️ Восстановить веса</button>
+    </p>
+    <p id="brainMsg" class="meta">или задайте вопрос и смотрите ниже, какие кандидаты выбирал последний слой на каждом шаге:</p>
+    <div id="brainOut" class="brainout"></div>
+  </details>
+
   <footer>работает полностью офлайн · файлы: index.html, style.css, app.js, model.json + model.js (резерв для file://)</footer>
 </div>
 <script src="app.js"></script>
@@ -110,10 +121,45 @@ function ask() {
     waiting.parentElement.appendChild(meta);
     NEURO.state.busy = false;
     btn.disabled = false;
+    renderTrace(a);
   }, 30);
+
+function renderTrace(answer) {
+  const trace = NEURO.state.lastTrace || [];
+  const out = document.getElementById("brainOut");
+  out.innerHTML = "";
+  if (NEURO.state.damaged) {
+    const d = document.createElement("div");
+    d.className = "brainline";
+    d.textContent = "⚠️ веса повреждены — этот ответ рождался сломанной сетью";
+    out.appendChild(d);
+  }
+  trace.forEach((st, i) => {
+    const d = document.createElement("div");
+    d.className = "brainline";
+    d.textContent = (i + 1) + ". «" + st.word + "» ← " +
+      st.candidates.map((c) => c.w + " " + Math.round(c.p * 100) + "%").join(" · ");
+    out.appendChild(d);
+  });
+}
 }
 btn.onclick = ask;
 inp.addEventListener("keydown", (e) => { if (e.key === "Enter") ask(); });
+
+const dmgBtn = document.getElementById("damage"), rstBtn = document.getElementById("restore");
+dmgBtn.onclick = () => {
+  if (!NEURO.state.ready || NEURO.state.damaged) return;
+  NEURO.damageWeights(1);
+  dmgBtn.disabled = true; rstBtn.disabled = false;
+  document.getElementById("brainMsg").textContent = "нейроны повреждены (шум +0.15 к каждому весу) — спросите что-нибудь и сравните ответы";
+  document.getElementById("brainOut").innerHTML = "";
+};
+rstBtn.onclick = () => {
+  NEURO.restoreWeights();
+  dmgBtn.disabled = false; rstBtn.disabled = true;
+  document.getElementById("brainMsg").textContent = "веса восстановлены — сеть снова здорова";
+  document.getElementById("brainOut").innerHTML = "";
+};
 </script>
 </body>
 </html>

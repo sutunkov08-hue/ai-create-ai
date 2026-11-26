@@ -192,6 +192,7 @@ function generateAnswer(text, temperature, topK) {
   const rng = Math.random;
   const ids = encodeQuestion(text, meta);
   const outTokens = [];
+  const trace = [];
   for (let step = 0; step < 24; step++) {
     const ctx = ids.slice(-meta.max_len);
     const logits = forwardLogits(ctx, W, meta);
@@ -209,14 +210,44 @@ function generateAnswer(text, temperature, topK) {
     for (let i = 0; i < pt.length; i++) pt[i] /= sum;
     let r = rng(), acc = 0, nxt = top[0];
     for (let i = 0; i < top.length; i++) { acc += pt[i]; if (r <= acc) { nxt = top[i]; break; } }
+    trace.push({
+      word: meta.vocab_key[nxt],
+      candidates: top.map((t, i) => ({ w: meta.vocab_key[t], p: pt[i] }))
+    });
     if (nxt === sp.eos) break;
     ids.push(nxt);
     outTokens.push(meta.vocab_key[nxt]);
     if (ids.length >= meta.max_len) break;
   }
+  state.lastTrace = trace;
   return decodeTokens(outTokens);
 }
 
 window.addEventListener("load", () => { loadModel(); });
 
-window.NEURO = { state, generateAnswer, decodeTokens, tokenize, encodeQuestion, forwardLogits };
+/* ---------- живые нейроны: повреждение весов и след мыслей ---------- */
+function gauss() {
+  return (Math.random() + Math.random() + Math.random() + Math.random() - 2) * 1.732;
+}
+
+function damageWeights(intensity) {
+  if (!state.ready || state.damaged) return;
+  state.backup = JSON.parse(JSON.stringify(state.weights));
+  const sigma = (intensity || 1) * 0.15;
+  for (const k in state.weights) {
+    const m = state.weights[k];
+    for (let i = 0; i < m.length; i++)
+      for (let j = 0; j < m[i].length; j++) m[i][j] += sigma * gauss();
+  }
+  state.damaged = true;
+}
+
+function restoreWeights() {
+  if (state.backup) {
+    state.weights = state.backup;
+    state.backup = null;
+    state.damaged = false;
+  }
+}
+
+window.NEURO = { state, generateAnswer, decodeTokens, tokenize, encodeQuestion, forwardLogits, damageWeights, restoreWeights };

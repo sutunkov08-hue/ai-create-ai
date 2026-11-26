@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Нейро — нейросеть без API, живущая в браузере</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">🧠</div>
+    <div>
+      <h1>Нейро</h1>
+      <p class="sub">мини-GPT, обученный с нуля · без API · без интернета · инференс в твоём браузере</p>
+    </div>
+    <div class="status" id="status">загрузка весов…</div>
+  </header>
+
+  <main id="chat" aria-live="polite">
+    <div class="msg bot"><div class="bubble">Привет! Я <b>Нейро</b> — крошечная нейросеть (мини-трансформер), которую обучили прямо из кода: свои матрицы, свой механизм внимания, своё обучение. Спроси меня о себе, о фактах или заставь посчитать: «сколько будет 7 умножить на 8».</div></div>
+  </main>
+
+  <div class="bar">
+    <input id="inp" type="text" placeholder="Спроси что-нибудь…" autocomplete="off" autofocus>
+    <button id="send" disabled>...</button>
+  </div>
+
+  <section class="panel">
+    <div class="params" id="params">—</div>
+    <label class="ctrl">температура
+      <input type="range" id="temp" min="0.2" max="1.2" step="0.1" value="0.6">
+      <span id="tempv">0.6</span>
+    </label>
+    <label class="ctrl">случайность (top-k)
+      <input type="range" id="topk" min="1" max="8" step="1" value="4">
+      <span id="topkv">4</span>
+    </label>
+  </section>
+
+  <details class="about">
+    <summary>Как это устроено внутри</summary>
+    <p>Здесь нет никаких внешних сервисов и API-ключей. Модель — двухслойный трансформер:
+    словарь ~700 токенов, размерность 96, 3 головы внимания, обучение counting loss только на ответах.
+    Она обучена с нуля на Python + numpy (вручную написанные forward и backprop, оптимизатор Adam),
+    а на этой странице её веса (~0.4 млн параметров) загружаются из model.json, и каждый ответ
+    считается заново на твоём устройстве на чистом JavaScript: эмбеддинги → самовнимание → полносвязные слои →
+    вероятности следующего слова → сэмплирование с температурой и top-k.</p>
+    <p>Это настоящий (пусть и крошечный) интеллект: он предсказывает продолжение по выученным закономерностям,
+    а не читает готовые строки из таблицы. Но честно: мой корпус маленький, поэтому за его пределами я могу ошибаться —
+    так и большие модели иногда «галлюцинируют».</p>
+  </details>
+
+  <details class="about" id="brainPanel">
+    <summary>Живые нейроны — докажите себе, что это не скрипт</summary>
+    <p>Ответы рождаются не поиском по шаблонам, а перемножением матриц весов. Проверьте сами:</p>
+    <p>
+      <button id="damage" class="mini">🧪 Повредить нейроны (шум в веса)</button>
+      <button id="restore" class="mini" disabled>♻️ Восстановить веса</button>
+    </p>
+    <p id="brainMsg" class="meta">или задайте вопрос и смотрите ниже, какие кандидаты выбирал последний слой на каждом шаге:</p>
+    <div id="brainOut" class="brainout"></div>
+  </details>
+
+  <footer>работает полностью офлайн · файлы: index.html, style.css, app.js, model.json + model.js (резерв для file://)</footer>
+</div>
+<script src="app.js"></script>
+<script>
+const chat = document.getElementById("chat");
+const inp = document.getElementById("inp");
+const btn = document.getElementById("send");
+const statusEl = document.getElementById("status");
+const paramsEl = document.getElementById("params");
+const tempEl = document.getElementById("temp"), tempv = document.getElementById("tempv");
+const topkEl = document.getElementById("topk"), topkv = document.getElementById("topkv");
+
+tempEl.oninput = () => { NEURO.state.temperature = +tempEl.value; tempv.textContent = tempEl.value; };
+topkEl.oninput = () => { NEURO.state.topK = +topkEl.value; topkv.textContent = topkEl.value; };
+
+function addMsg(text, who) {
+  const d = document.createElement("div");
+  d.className = "msg " + who;
+  const b = document.createElement("div");
+  b.className = "bubble";
+  b.textContent = text;
+  d.appendChild(b);
+  chat.appendChild(d);
+  chat.scrollTop = chat.scrollHeight;
+  return b;
+}
+
+document.addEventListener("modelready", (e) => {
+  statusEl.textContent = "модель загружена ✓";
+  btn.disabled = false; btn.textContent = "➤";
+  paramsEl.textContent = e.detail.params.toLocaleString("ru-RU") + " параметров · " +
+    e.detail.n_layer + " слоя · " + e.detail.heads + " головы внимания · словарь " + e.detail.vocab_size;
+});
+
+document.addEventListener("modelerror", (e) => {
+  statusEl.textContent = "Ошибка загрузки весов ✗";
+  paramsEl.textContent = e.detail.message + " — запустите: cd site && python3 -m http.server 8080";
+  addMsg("Не удалось загрузить веса модели. Если вы открыли index.html просто как файл, лучше запустите локальный сервер: cd site && python3 -m http.server 8080 и откройте http://localhost:8080 (или откройте страницу в Firefox/Safari).", "bot");
+});
+
+function ask() {
+  const q = inp.value.trim();
+  if (!q || NEURO.state.busy || !NEURO.state.ready) return;
+  addMsg(q, "user");
+  inp.value = "";
+  NEURO.state.busy = true;
+  btn.disabled = true;
+  const waiting = addMsg("…думаю, считаю нейроны…", "bot");
+  setTimeout(() => {
+    const t0 = performance.now();
+    const a = NEURO.generateAnswer(q, NEURO.state.temperature, NEURO.state.topK) || "…я растерялся, спроси иначе.";
+    waiting.textContent = a;
+    const dt = Math.round(performance.now() - t0);
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = dt + " мс · инференс локально";
+    waiting.parentElement.appendChild(meta);
+    NEURO.state.busy = false;
+    btn.disabled = false;
+    renderTrace(a);
+  }, 30);
+
+function renderTrace(answer) {
+  const trace = NEURO.state.lastTrace || [];
+  const out = document.getElementById("brainOut");
+  out.innerHTML = "";
+  if (NEURO.state.damaged) {
+    const d = document.createElement("div");
+    d.className = "brainline";
+    d.textContent = "⚠️ веса повреждены — этот ответ рождался сломанной сетью";
+    out.appendChild(d);
+  }
+  trace.forEach((st, i) => {
+    const d = document.createElement("div");
+    d.className = "brainline";
+    d.textContent = (i + 1) + ". «" + st.word + "» ← " +
+      st.candidates.map((c) => c.w + " " + Math.round(c.p * 100) + "%").join(" · ");
+    out.appendChild(d);
+  });
+}
+}
+btn.onclick = ask;
+inp.addEventListener("keydown", (e) => { if (e.key === "Enter") ask(); });
+
+const dmgBtn = document.getElementById("damage"), rstBtn = document.getElementById("restore");
+dmgBtn.onclick = () => {
+  if (!NEURO.state.ready || NEURO.state.damaged) return;
+  NEURO.damageWeights(1);
+  dmgBtn.disabled = true; rstBtn.disabled = false;
+  document.getElementById("brainMsg").textContent = "нейроны повреждены (шум +0.15 к каждому весу) — спросите что-нибудь и сравните ответы";
+  document.getElementById("brainOut").innerHTML = "";
+};
+rstBtn.onclick = () => {
+  NEURO.restoreWeights();
+  dmgBtn.disabled = false; rstBtn.disabled = true;
+  document.getElementById("brainMsg").textContent = "веса восстановлены — сеть снова здорова";
+  document.getElementById("brainOut").innerHTML = "";
+};
+</script>
+</body>
+</html>
