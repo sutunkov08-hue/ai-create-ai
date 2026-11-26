@@ -305,8 +305,14 @@ def export_model():
     }
     with open("site/model.json", "w", encoding="utf-8") as f:
         json.dump({"meta": meta, "weights": weights}, f, ensure_ascii=False)
+    payload = {"meta": meta, "weights": weights}
+    with open("site/model.js", "w", encoding="utf-8") as f:
+        f.write("window.NEURO_WEIGHTS = ")
+        json.dump(payload, f, ensure_ascii=False)
+        f.write(";\n")
     print("экспорт: весов", meta["params"], "| model.json",
-          round(os.path.getsize("site/model.json") / 1e6, 1), "МБ")
+          round(os.path.getsize("site/model.json") / 1e6, 1), "МБ | model.js",
+          round(os.path.getsize("site/model.js") / 1e6, 1), "МБ")
 
 # ------------------------------------------------------------- обучение
 t0 = time.time()

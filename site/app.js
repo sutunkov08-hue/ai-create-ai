@@ -6,9 +6,7 @@ const state = { weights: null, meta: null, ready: false, temperature: 0.6, topK:
 
 function softLog(msg) { console.log("[нейро]", msg); }
 
-async function loadModel() {
-  const res = await fetch("model.json");
-  const data = await res.json();
+function applyModelData(data) {
   state.meta = data.meta;
   state.weights = data.weights;
   const inv = new Array(state.meta.vocab_size);
@@ -17,6 +15,35 @@ async function loadModel() {
   state.ready = true;
   softLog("модель загружена: " + state.meta.params + " параметров, словарь " + state.meta.vocab_size);
   document.dispatchEvent(new CustomEvent("modelready", { detail: state.meta }));
+}
+
+function failModel(msg) {
+  state.loadError = msg;
+  softLog(msg);
+  document.dispatchEvent(new CustomEvent("modelerror", { detail: { message: msg } }));
+}
+
+function loadEmbeddedModel() {
+  if (window.NEURO_WEIGHTS) { applyModelData(window.NEURO_WEIGHTS); return; }
+  const s = document.createElement("script");
+  s.src = "model.js";
+  s.onload = () => {
+    if (window.NEURO_WEIGHTS) applyModelData(window.NEURO_WEIGHTS);
+    else failModel("веса не найдены: нет ни model.json, ни model.js");
+  };
+  s.onerror = () => failModel("веса не загрузились: модель лежит в model.js рядом с index.html");
+  document.head.appendChild(s);
+}
+
+async function loadModel() {
+  try {
+    const res = await fetch("model.json");
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    applyModelData(await res.json());
+  } catch (e) {
+    softLog("fetch model.json недоступен (" + e + "), пробую model.js…");
+    loadEmbeddedModel();
+  }
 }
 
 /* ---------- числовые примитивы ---------- */

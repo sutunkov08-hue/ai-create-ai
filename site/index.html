@@ -51,7 +51,7 @@
     так и большие модели иногда «галлюцинируют».</p>
   </details>
 
-  <footer>работает полностью офлайн · файлы: index.html, style.css, app.js, model.json</footer>
+  <footer>работает полностью офлайн · файлы: index.html, style.css, app.js, model.json + model.js (резерв для file://)</footer>
 </div>
 <script src="app.js"></script>
 <script>
@@ -83,6 +83,12 @@ document.addEventListener("modelready", (e) => {
   btn.disabled = false; btn.textContent = "➤";
   paramsEl.textContent = e.detail.params.toLocaleString("ru-RU") + " параметров · " +
     e.detail.n_layer + " слоя · " + e.detail.heads + " головы внимания · словарь " + e.detail.vocab_size;
+});
+
+document.addEventListener("modelerror", (e) => {
+  statusEl.textContent = "Ошибка загрузки весов ✗";
+  paramsEl.textContent = e.detail.message + " — запустите: cd site && python3 -m http.server 8080";
+  addMsg("Не удалось загрузить веса модели. Если вы открыли index.html просто как файл, лучше запустите локальный сервер: cd site && python3 -m http.server 8080 и откройте http://localhost:8080 (или откройте страницу в Firefox/Safari).", "bot");
 });
 
 function ask() {

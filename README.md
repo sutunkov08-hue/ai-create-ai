@@ -32,7 +32,7 @@ cd site && python3 -m http.server 8080
 # открыть http://localhost:8080
 ```
 
-Нельзя просто открыть index.html через file:// — fetch model.json требует http.
+Если http-сервер неудобен — можно просто открыть site/index.html двойным кликом: браузеры блокируют fetch(model.json) для file://, поэтому в этом случае веса автоматически подхватятся из model.js (обычный script-тег). Если не сработает и это — откройте страницу в Firefox или Safari.
 
 ## Что умеет Нейро
 
