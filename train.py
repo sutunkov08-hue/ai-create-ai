@@ -45,7 +45,7 @@ itos.update({i: s for i, s in enumerate(SPECIALS)})
 print("токенов в потоке:", len(stream), "| словарь:", vocab_size)
 
 # ------------------------------------------------------- примеры обучения
-MAXLEN = 44
+MAXLEN = 56
 examples = []  # (ids, mask) выровненные по длине
 i = 0
 n = len(stream)
@@ -69,15 +69,15 @@ X_all = np.array([e[0] for e in examples], dtype=np.int32)
 M_all = np.array([e[1] for e in examples], dtype=np.float32)
 
 # ------------------------------------------------------------- гиперпараметры
-D = 96          # размер модели
-HEADS = 3
+D = 128         # размер модели
+HEADS = 4
 DH = D // HEADS
-FF = 384
+FF = 512
 N_LAYER = 2
 MAXPOS = MAXLEN
 LR = 2.5e-3
 BATCH = 64
-STEPS = 8000
+STEPS = 7000
 WARMUP = 150
 
 # ------------------------------------------------------------- инициализация
